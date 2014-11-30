@@ -84,10 +84,10 @@ def main(argv):
             # connect to the message broker
 
             msg_broker = pika.BlockingConnection(
-                pika.ConnectionParameters(host=broker,
-                                          virtual_host=v_host,
-                                          credentials=pika.PlainCredentials(login,
-                                                                            password,
+                pika.ConnectionParameters(host="localhost",
+                                          virtual_host="environment_host",
+                                          credentials=pika.PlainCredentials("leonp92",
+                                                                            "raspberry",
                                                                             True))
             )
 
