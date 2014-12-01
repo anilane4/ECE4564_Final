@@ -16,6 +16,7 @@ import sys
 import getopt
 import signal
 import json
+import time
 
 # Global variable that controls running the app
 publish_Temp = True
@@ -31,7 +32,10 @@ def stop_temp_service(signal, frame):
 #this function is going to read teh value from the temp sensor and return that value
 # for now i dont have the hard ware so i am going to fake it
 def getTemperatureData( numInArray):
-    mylist = [75, 74, 79, 70, 70, 70, 71, 72, 75, 68]
+    mylist = ["75", "74", "79", "70", "70", "70", "71", "72", "75", "68"]
+    print "this temp = " + mylist[numInArray]
+    #sleep for one sec
+    time.sleep(15)
     return mylist[numInArray]
 
 
@@ -66,8 +70,9 @@ def main(argv):
         # for each operation interate through and place it with the correct value
         for opt, arg in opts:
             if opt == '-z':
-                if isinstance(arg, int):
-                    zoneNumber = arg
+                convert = int(arg)
+                if isinstance(convert, int):
+                    zoneNumber = convert
                     zopt = True
                 else:
                     print "Zone number must be a int"
@@ -82,14 +87,12 @@ def main(argv):
         ch = None
         try:
             # connect to the message broker
-
             msg_broker = pika.BlockingConnection(
-                pika.ConnectionParameters(host="localhost",
-                                          virtual_host="environment_host",
-                                          credentials=pika.PlainCredentials("leonp92",
-                                                                            "raspberry",
-                                                                            True))
-            )
+                pika.ConnectionParameters(host='192.168.1.22',
+                                          virtual_host='environment_host',
+                                          credentials=pika.PlainCredentials('leonp92',
+                                                                            'raspberry',
+                                                                            True)))
 
             print "Connected to message broker"
 
@@ -99,7 +102,7 @@ def main(argv):
             ch.exchange_declare(exchange="environment_broker",
                                 type="direct")
             #my dictionary for my information to be sent out
-            zone_data = {"Zone": zoneNumber, "Temp": 0}
+            zone_data = {"Zone": zoneNumber, "Temp": "0"}
             myCount = 0
             print "Sending Temperature data"
             while(publish_Temp):
@@ -107,7 +110,6 @@ def main(argv):
                 myCount += 1
                 if myCount == 10:
                     myCount = 0
-                      # creates a JSON representation of the networking and CPU information
                 json_message = json.dumps(zone_data)
                 # Send the message
                 ch.basic_publish(exchange="environment_broker",
@@ -125,8 +127,10 @@ def main(argv):
 
         finally:
             if ch is not None:
+                print "closing channel"
                 ch.close()
             if msg_broker is not None:
+                print "closing broker"
                 msg_broker.close()
     except Exception, ee:
         # unkown error shouting down
