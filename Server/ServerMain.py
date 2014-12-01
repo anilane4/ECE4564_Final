@@ -1,5 +1,5 @@
 #! /usr/bin/python
-import TemperatureMonitor, thread, pika, json, sys, time
+import thread, pika, json, sys, time
 
 def main(argv):
 	# Variable declarations
