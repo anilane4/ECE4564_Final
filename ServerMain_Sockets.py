@@ -7,7 +7,7 @@ def main(argv):
 	zTrigger = [75, 75]
 	zACStatus = [0, 0]
 	zManual = [0, 0]
-	clients = []
+	clients = {}
 
 	if len(argv) > 0:
 		host = argv[0]
@@ -33,6 +33,9 @@ def main(argv):
 			server2ZonesSocket.listen(5)
 			print "Zone Socket is open on port 2001!"
 
+			controlSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+			controlSocket.connect((str(host), int(2003)))
+
 		except socket.error, (value, message):
 			if server2ClientSocket:	
 				server2ClientSocket.close()
@@ -41,33 +44,19 @@ def main(argv):
 			print "Could not open server socket: " + message
 			sys.exit(1)
 
-		# Try to set up connetion to control hub
-		try:
-			controlSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-			controlSocket.connect((str(host), int(2003)))
-		except socket.error, (value, message):
-			if controlSocket:	
-				controlSocket.close()
-			if server2ClientSocket:	
-				server2ClientSocket.close()
-			if server2ZonesSocket:	
-				server2ZonesSocket.close()
-			print "Could not connect to control hub socket: " + message
-			sys.exit(1)
-
-		def sendData(clients):
+		def sendData():
 			dataDict = {'Zone 1':{'temp':str(zoneTemp[0]), 'isOn': str(zACStatus[0])}, 'Zone 2':{'temp':str(zoneTemp[1]), 'isOn':str(zACStatus[1])}}
-			for client in clients:
-				client.send(json.dumps(dataDict))
-			print "Sending messages to exchange environment_broker and routing key server_to_client"
+			for cKey in clients:
+				clients[cKey].send(json.dumps(dataDict))
+			print "Sending temperature data to clients"
 
 		def toggleAC(zone, status):
 			dataDict = {'Zone':str(zone), 'AC':str(status)}
 			controlSocket.send(json.dumps(dataDict))
-			print "Sending messages to exchange environment_broker and routing key control_hub"
+			print "Sending toggle message to control hub"
 
 
-		def zoneCallback(zoneIndex, zoneTemp):
+		def zoneCallbackCheck(zoneIndex, zoneTemp):
 			# If it's not manual control AND Temp > current
 			if zManual[zoneIndex] == 0 and zoneTemp != None:
 				if zTrigger[zoneIndex] >= zoneTemp:
@@ -84,67 +73,86 @@ def main(argv):
 						toggleAC(zoneIndex+1, 1)
 						print "Turning on AC in zone: " + str(zoneIndex+1)
 
-		def clientCallback(client, address):
-			data = client.recv(1024)
+		def clientCallback(client, address, index):
+			try:
+				while True:
+					data = client.recv(1024)
 
-			jsonTemp = json.loads(data)
-			zone = None
-			trigger = None
-			manual = None
-			acOn = None
-			i = 0
-			
-			zone = int(jsonTemp['id'])
-			trigger = int(jsonTemp['trigger'])
-			manual = int(jsonTemp['manual'])
-			acOn = int(jsonTemp['acOn'])
+					if not data:
+						if index in clients:
+							del clients[index]
+							print "Client " + str(index) + " is disconnecting!"
+					else:
+						jsonTemp = json.loads(data)
+						zone = None
+						trigger = None
+						manual = None
+						acOn = None
+						i = 0
+						
+						print "[X] %r" % (jsonTemp,)
+						zone = int(jsonTemp['id'])
+						trigger = int(jsonTemp['trigger'])
+						manual = int(jsonTemp['manual'])
+						acOn = int(jsonTemp['acOn'])
 
-			zTrigger[zone-1] = trigger
-			zManual[zone-1] = manual
+						zTrigger[zone-1] = trigger
+						zManual[zone-1] = manual
 
-			if manual == 0:
-				if trigger >= zoneTemp[zone-1]:
-					if zACStatus[zone-1] == 1:
-						# Turn off.
-						zACStatus[zone-1] = 0
-						toggleAC(zone, 0)
-						print "Turning off AC in zone: " + str(zone)
+						if manual == 0:
+							if trigger >= zoneTemp[zone-1]:
+								if zACStatus[zone-1] == 1:
+									# Turn off.
+									zACStatus[zone-1] = 0
+									toggleAC(zone, 0)
+									print "Turning off AC in zone: " + str(zone)
 
-				else:
-					if zACStatus[zone-1] == 0:
-						# Turn on
-						zACStatus[zone-1] = 1
-						toggleAC(zone, 1)
-						print "Turning on AC in zone: " + str(zone)
-			else:
-				if acOn ==  0 and zACStatus[zone-1] == 1:
-					# Turn off
-					zACStatus[zone-1] = 0
-					toggleAC(zone, 0)
-					print "Turning off AC in zone: " + str(zone)
-				elif acOn == 1 and zACStatus[zone-1] == 0:
-					# Turn on
-					zACStatus[zone-1] = 1
-					toggleAC(zone, 1)
-					print "Turning on AC in zone: " + str(zone)
+							else:
+								if zACStatus[zone-1] == 0:
+									# Turn on
+									zACStatus[zone-1] = 1
+									toggleAC(zone, 1)
+									print "Turning on AC in zone: " + str(zone)
+						else:
+							if acOn ==  0 and zACStatus[zone-1] == 1:
+								# Turn off
+								zACStatus[zone-1] = 0
+								toggleAC(zone, 0)
+								print "Turning off AC in zone: " + str(zone)
+							elif acOn == 1 and zACStatus[zone-1] == 0:
+								# Turn on
+								zACStatus[zone-1] = 1
+								toggleAC(zone, 1)
+								print "Turning on AC in zone: " + str(zone)
+						sendData()
+			except KeyboardInterrupt, SystemExit:
+				return
 
-		def zoneCallback(client, address):
-			data = client.recv(1024)
+		def zoneWorker(client, address):
+			try:
+				while True:
+					data = client.recv(1024)
+					print data
+					jsonTemp = json.loads(data)
+					temp = int(jsonTemp['Temp'])
+					zone = int(jsonTemp['Zone']) - 1
+					print str(temp) + " of Zone " + str(zone+1)
+					zoneTemp[zone] = int(temp)	
+					zoneCallbackCheck(zone, temp)
 
-			jsonTemp = json.loads(data)
-			temp = int(jsonTemp['Temp'])
-			zone = int(jsonTemp['Zone']) - 1
-			
-			zoneTemp[zone - 1] = int(temp)	
-			zoneCallback(zone, temp)
-			sendData()	
+					sendData()	
+			except:
+				print "Zone socket closing."
+				client.close()
 
 		def clientThreads(sock):
 			try:
+				i = 0
 				while True:
 					connection, address = sock.accept()
-					clients.append(connection)
-					thread.start_new_thread(clientCallback, (connection, address,))
+					clients[i] = connection
+					thread.start_new_thread(clientCallback, (connection, address, i,))
+					i += 1
 					print 'A client connected!'
 			except KeyboardInterrupt:
 				print "Server is closing."
@@ -154,8 +162,8 @@ def main(argv):
 			try:
 				while True:
 					connection, address = sock.accept()
-					thread.start_new_thread(zoneCallback, (connection, address,))
-					print 'A client connected!'
+					thread.start_new_thread(zoneWorker, (connection, address,))
+					print 'A zone connected!'
 			except KeyboardInterrupt:
 				print "Server is closing."
 				sock.close()
@@ -163,6 +171,9 @@ def main(argv):
 		thread.start_new_thread(clientThreads, (server2ClientSocket,))
 		thread.start_new_thread(zoneThreads, (server2ZonesSocket, ))
 		print "Environment Server is up and running!"
+
+		while True:
+			testing = True
 
 	except (KeyboardInterrupt, SystemExit):
 		if server2ClientSocket:	
