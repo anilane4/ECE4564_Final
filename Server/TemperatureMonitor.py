@@ -1,10 +1,10 @@
 class TemperatureMonitor:
 	def __init__(self):
-		triggerTemperature = [75, 75]
-		zoneTemperatures = []
-		isManual = False
-		manualTrigger = 0
-		isACRunning = [False, False]
+		self.triggerTemperature = [75, 75]
+		self.zoneTemperatures = []
+		self.isManual = False
+		self.manualTrigger = 0
+		self.isACRunning = [False, False]
 
 	def setTriggerTemperature(self, zone, temp):
 		self.triggerTemperature[zone] = temp
