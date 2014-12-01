@@ -1,5 +1,5 @@
 #! /usr/bin/python
-import thread, sys, socket
+import thread, sys, socket, json
 
 def main(argv):
 	# Variable declarations
@@ -56,14 +56,14 @@ def main(argv):
 			sys.exit(1)
 
 		def sendData(clients):
-			dataStr = "'Zone 1':{'temp':"+ str(zoneTemp[0])+", 'isOn':"+ str(zACStatus[0])+"}, 'Zone 2':{'temp':"+str(zoneTemp[1])+", 'isOn':"+str(zACStatus[1])+"}}"
+			dataDict = {'Zone 1':{'temp':str(zoneTemp[0]), 'isOn': str(zACStatus[0])}, 'Zone 2':{'temp':str(zoneTemp[1]), 'isOn':str(zACStatus[1])}}
 			for client in clients:
-				client.send(dataStr)
+				client.send(json.dumps(dataDict))
 			print "Sending messages to exchange environment_broker and routing key server_to_client"
 
 		def toggleAC(zone, status):
-			dataStr = "{'Zone':"+str(zone)+", 'AC':"+str(status)+"}"
-			controlSocket.send(dataStr)
+			dataDict = {'Zone':str(zone), 'AC':str(status)}
+			controlSocket.send(json.dumps(dataDict))
 			print "Sending messages to exchange environment_broker and routing key control_hub"
 
 
@@ -87,24 +87,17 @@ def main(argv):
 		def clientCallback(client, address):
 			data = client.recv(1024)
 
-			jsonTemp = data.replace('{',"").replace('}',"").replace(" ","").replace('\"',"").replace("\n", "").replace(":", ",").split(',')
-			print jsonTemp
+			jsonTemp = json.loads(data)
 			zone = None
 			trigger = None
 			manual = None
 			acOn = None
 			i = 0
-
-			for entry in jsonTemp:
-				if entry == 'id':
-					zone = int(jsonTemp[i+1])
-				elif entry == 'trigger':
-					trigger = int(jsonTemp[i+1])
-				elif entry == 'manual':
-					manual = int(jsonTemp[i+1])
-				elif entry == 'acOn':
-					acOn = int(jsonTemp[i+1])
-				i += 1
+			
+			zone = int(jsonTemp['id'])
+			trigger = int(jsonTemp['trigger'])
+			manual = int(jsonTemp['manual'])
+			acOn = int(jsonTemp['acOn'])
 
 			zTrigger[zone-1] = trigger
 			zManual[zone-1] = manual
@@ -138,19 +131,10 @@ def main(argv):
 		def zoneCallback(client, address):
 			data = client.recv(1024)
 
-			jsonTemp = data.replace(" ", "").strip('{')
-			jsonTemp = jsonTemp.strip('}')
-			jsonTemp = jsonTemp.split(',')
-			json1 = jsonTemp[0].split(':')
-			json2 = jsonTemp[1].split(':')
-
-			if json1[0].replace("\"","") == 'Temp':
-				temp = int(json1[1].replace("\"",""))
-				zone = int(json2[1].replace("\"","")) - 1
-			else:
-
-				temp = int(json2[1].replace("\"",""))
-				zone = int(json1[1].replace("\"","")) - 1
+			jsonTemp = json.loads(data)
+			temp = int(jsonTemp['Temp'])
+			zone = int(jsonTemp['Zone']) - 1
+			
 			zoneTemp[zone - 1] = int(temp)	
 			zoneCallback(zone, temp)
 			sendData()	
