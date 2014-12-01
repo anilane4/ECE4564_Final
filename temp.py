@@ -31,7 +31,7 @@ def stop_temp_service(signal, frame):
 #this function is going to read teh value from the temp sensor and return that value
 # for now i dont have the hard ware so i am going to fake it
 def getTemperatureData( numInArray):
-    mylist = [65.3, 68.5, 69.4, 70.3, 70.3, 70.3, 71.2, 72.3, 75.6, 68.2]
+    mylist = [75, 74, 79, 70, 70, 70, 71, 72, 75, 68]
     return mylist[numInArray]
 
 
@@ -99,7 +99,7 @@ def main(argv):
             ch.exchange_declare(exchange="environment_broker",
                                 type="direct")
             #my dictionary for my information to be sent out
-            zone_data = {"Zone": zoneNumber, "Temp": 0.0}
+            zone_data = {"Zone": zoneNumber, "Temp": 0}
             myCount = 0
             print "Sending Temperature data"
             while(publish_Temp):
