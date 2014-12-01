@@ -1,16 +1,4 @@
-import sys, Tkinter, pika, ClientGUI, thread, json
-
-def serverListener(ch, temp_queue, guiObj):
-	print 'TESTING TESTING'
-	def callback(ch, method, properties, body):
-		jsonDict = json.load(body)
-		i = 0
-		print " [X] %r:%r" % (method.routing_key, body,)
-		for key, value in jsonDict:
-			guiObj.setZoneTemp(i, int(value["temp"]), bool(value["isOn"])) 
-
-	ch.basic_consume(callback, queue=temp_queue.method.queue, no_ack=True)
-	#ch.start_consuming()
+import sys, Tkinter, pika, ClientGUI_Sockets, threading, json, socket, os
 
 def main(argv):
 	root = Tkinter.Tk()
@@ -18,23 +6,59 @@ def main(argv):
 
 	host = argv[0]
 
-	msg_broker = pika.BlockingConnection(
-		pika.ConnectionParameters(host=host,
-								  virtual_host='environment_host',
-								  credentials=pika.PlainCredentials("leonp92", "raspberry", True)))
-	# Set up channel
-	msg_ch = msg_broker.channel()
-	msg_ch.exchange_declare(exchange='environment_broker', type='direct')
+	def serverListener(ch, guiObj):
+		try:
+			while True:
+				body = ch.recv(1024)
 
-	# Create a queue for consuming messages
-	temp_queue = msg_ch.queue_declare(exclusive=True)
-	msg_ch.queue_bind(exchange="environment_broker", queue=temp_queue.method.queue, routing_key='server_to_client')
+				if not body:
+					print "Server Environment Socket closed!"
+					os._exit(1)
+				else:
+					jsonDict = json.loads(body)
+					i = 0
+					print " [X] %r" % (jsonDict,)
+					for key in jsonDict:
+						value = jsonDict[key]
+						guiObj.setZoneTemp(i, int(value["temp"]), int(value["isOn"])) 
+						i += 1
+		except KeyboardInterrupt:
+			print "Terminating connection with Environment Server!"
+			ch.close()
+			root.destroy()
+			root.quit()
+			os._exit(1)
 
-	appGUI = ClientGUI.ClientGUI(root, msg_ch)
-	thread.start_new_thread(serverListener, (msg_ch, temp_queue, appGUI))
+	try:
+		mainSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+		mainSocket.connect((str(host), int(2000)))
 
-	root.mainloop()
+		try:
+			appGUI = ClientGUI_Sockets.ClientGUI(root, mainSocket)
+			socketThread = threading.Thread(target=serverListener, args=(mainSocket, appGUI,))
+			socketThread.start()
+		except:
+			mainSocket.close()
+
+		def closeOut():
+			print "Exiting Environment Client!"
+			if mainSocket:
+				mainSocket.close()
+			os._exit(1)
+		root.protocol("WM_DELETE_WINDOW", closeOut)
+		root.mainloop()
+	except:
+		root.destroy()
+		root.quit()
+		if mainSocket:	
+			mainSocket.close()
+		print "ERROR: Failed to connect to Environment Server!"
+		os._exit(1)
 
 if __name__=='__main__':
-	main(sys.argv[1:])
+	try:
+		main(sys.argv[1:])
+	except:
+		print "Exiting Environment Client"
+		os._exit(1)
 
