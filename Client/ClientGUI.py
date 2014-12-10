@@ -52,7 +52,7 @@ class ClientGUI(Tkinter.Frame):
 			triggerTemp = self.textInput1.get()
 
 			if triggerTemp.isdigit():
-				self.broker.basic_publish(exchange='environment_broker', routing_key='client_to_server', body=json.dumps({"Zone 1": {"id":"1", "manual":str(self.z1_isManual.get()), "acOn":str(self.acOn1.get()),"trigger":str(triggerTemp)}}, default=lambda o:o.__dict__, indent=4))
+				self.broker.basic_publish(exchange='environment_broker', routing_key='client_to_server', body=json.dumps({"id":"1", "manual":str(self.z1_isManual.get()), "acOn":str(self.acOn1.get()),"trigger":str(triggerTemp)}, default=lambda o:o.__dict__, indent=4))
 				print "Submiting Zone 1 Data to the Server!"
 			else:
 				tkMessageBox.showerror("Error!", "ERROR: Trigger temperature value must be a number!")
@@ -60,7 +60,7 @@ class ClientGUI(Tkinter.Frame):
 			triggerTemp = self.textInput2.get()
 
 			if triggerTemp.isdigit():
-				self.broker.basic_publish(exchange='environment_broker', routing_key='client_to_server', body=json.dumps({"Zone 2": {"id":"2", "manual":str(self.z2_isManual.get()), "acOn":str(self.acOn2.get()),"trigger":str(triggerTemp)}}, default=lambda o:o.__dict__, indent=4))
+				self.broker.basic_publish(exchange='environment_broker', routing_key='client_to_server', body=json.dumps({"id":"2", "manual":str(self.z2_isManual.get()), "acOn":str(self.acOn2.get()),"trigger":str(triggerTemp)}, default=lambda o:o.__dict__, indent=4))
 				print "Submiting Zone 2 Data to the Server!"
 			else:
 				tkMessageBox.showerror("Error!", "ERROR: Trigger temperature value must be a number!")
@@ -94,7 +94,7 @@ class ClientGUI(Tkinter.Frame):
 
 		if triggerTemp.isdigit():
 			print "Submiting Zone " + str(zoneIndex) + " Data to the Server!"
-			return json.dumps({"Zone 2": {"id":"2", "manual":str(isMan), "acOn":str(ac),"trigger":str(triggerTemp)}}, 
+			return json.dumps({"id":"2", "manual":str(isMan), "acOn":str(ac),"trigger":str(triggerTemp)}, 
 				default=lambda o:o.__dict__, indent=4)
 		else:
 			tkMessageBox.showerror("Error!", "ERROR: Trigger temperature value must be a number!")	
