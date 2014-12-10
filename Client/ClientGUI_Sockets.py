@@ -82,6 +82,23 @@ class ClientGUI(Tkinter.Frame):
 		self.acOnCheck1 = Tkinter.Checkbutton(zone1_frame, text="AC On", variable=self.acOn1)
 		self.acOnCheck2 = Tkinter.Checkbutton(zone2_frame, text="AC On", variable=self.acOn2)
 
+	def getBuffer(self, zoneIndex):
+		if zoneIndex == 1:
+			triggerTemp = self.textInput1.get()
+			isMan = self.z1_isManual.get()
+			ac = self.acOn1.get()
+		else:
+			triggerTemp = self.textInput2.get()
+			isMan = self.z2_isManual.get()
+			ac = self.acOn2.get()
+
+		if triggerTemp.isdigit():
+			print "Submiting Zone " + str(zoneIndex) + " Data to the Server!"
+			return json.dumps({"id":"2", "manual":str(isMan), "acOn":str(ac),"trigger":str(triggerTemp)}, 
+				default=lambda o:o.__dict__, indent=4)
+		else:
+			tkMessageBox.showerror("Error!", "ERROR: Trigger temperature value must be a number!")	
+
 	def setZoneTemp(self, zoneIndex, temp, status):
 		self.zoneTemp[zoneIndex] = temp
 

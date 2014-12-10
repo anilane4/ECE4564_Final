@@ -10,16 +10,46 @@ Temp: 'tempuerature in F'
 
 __author__ = 'Martin Anilane'
 
-import pika
-import pika.exceptions
 import sys
 import getopt
 import signal
 import json
 import time
+import socket
+import os
+import glob
+import time
 
 # Global variable that controls running the app
 publish_Temp = True
+
+os.system('modprobe w1-gpio')
+os.system('modprobe w1-therm')
+
+base_dir = '/sys/bus/w1/devices/'
+device_folder = glob.glob(base_dir + '28*')[0]
+device_file = device_folder + '/w1_slave'
+
+
+def read_temp_raw():
+    f = open(device_file, 'r')
+    lines = f.readlines()
+    f.close()
+    return lines
+
+
+def read_temp():
+    lines = read_temp_raw()
+    while lines[0].strip()[-3:] != 'YES':
+        time.sleep(0.2)
+        lines = read_temp()
+    equals_pos = lines[1].find('t=')
+    if equals_pos != -1:
+        temp_string = lines[1][equals_pos+2:]
+        temp_c = float(temp_string) / 1000.0
+        temp_f = temp_c * 9.0 / 5.0 + 32.0
+        print "this temp = " + str(int(temp_f))
+        return  str(int(temp_f))
 
 
 def stop_temp_service(signal, frame):
@@ -35,7 +65,7 @@ def getTemperatureData( numInArray):
     mylist = ["75", "74", "79", "70", "70", "70", "71", "72", "75", "68"]
     print "this temp = " + mylist[numInArray]
     #sleep for one sec
-    time.sleep(15)
+    time.sleep(5)
     return mylist[numInArray]
 
 
@@ -43,14 +73,7 @@ def getTemperatureData( numInArray):
 def main(argv):
     try:
         zoneNumber = 0
-        broker = None
-        v_host = '/'
-        login = "guest"
-        password = "guest"
-        routkey = None
-        # Setup signal handlers to shutdown this app when SIGINT or SIGTERM is
-        # sent to this app
-        # For more info about signals, see: https://scholar.vt.edu/portal/site/0a8757e9-4944-4e33-9007-40096ecada02/page/e9189bdb-af39-4cb4-af04-6d263949f5e2?toolstate-701b9d26-5d9a-4273-9019-dbb635311309=%2FdiscussionForum%2Fmessage%2FdfViewMessageDirect%3FforumId%3D94930%26topicId%3D3507269%26messageId%3D2009512
+        host = ""
         signal_num = signal.SIGINT
         try:
             signal.signal(signal_num, stop_temp_service)
@@ -61,7 +84,7 @@ def main(argv):
 
         # get the opts
         try:
-            opts, args = getopt.getopt(argv, "z:")
+            opts, args = getopt.getopt(argv, "z:h:")
         #error handle for the incorrect values
         except getopt.GetoptError:
             print "temp -z zone number"
@@ -77,61 +100,47 @@ def main(argv):
                 else:
                     print "Zone number must be a int"
                     sys.exit(2)
+            elif opt == '-h':
+                host = arg
 
         # check the boolean for the set option
         if zopt == False:
             print "must put in zone number"
             sys.exit(2)
 
-        msg_broker = None
-        ch = None
+        mainSocket = None
+        print "im here"
         try:
-            # connect to the message broker
-            msg_broker = pika.BlockingConnection(
-                pika.ConnectionParameters(host='192.168.1.22',
-                                          virtual_host='environment_host',
-                                          credentials=pika.PlainCredentials('leonp92',
-                                                                            'raspberry',
-                                                                            True)))
-
-            print "Connected to message broker"
-
-            # setup the exchange
-            ch = msg_broker.channel()
-            # try:
-            ch.exchange_declare(exchange="environment_broker",
-                                type="direct")
+            try:
+                mainSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                mainSocket.connect((str(host), int(2001)))
+            except socket.error, (value, message):
+                print "closing socket: " + message
+                if mainSocket:  
+                    mainSocket.close()
+                sys.exit()
+                
+            print "Connected to host"
             #my dictionary for my information to be sent out
             zone_data = {"Zone": zoneNumber, "Temp": "0"}
             myCount = 0
             print "Sending Temperature data"
-            while(publish_Temp):
-                zone_data["Temp"] = getTemperatureData(myCount)
+            while publish_Temp:
+                zone_data["Temp"] = read_temp()
                 myCount += 1
                 if myCount == 10:
                     myCount = 0
                 json_message = json.dumps(zone_data)
                 # Send the message
-                ch.basic_publish(exchange="environment_broker",
-                            routing_key="zone_info",
-                            body=json_message)
-
-        except pika.exceptions.AMQPError, ae:
-            print "Error: An AMQP Error occured: " + ae.message
-
-        except pika.exceptions.ChannelError, ce:
-            print "Error: A channel error occured: " + ce.message
-
+                mainSocket.send(json_message)
+                time.sleep(5)
         except Exception, eee:
             print "Error: An unexpected exception occured: " + eee.message
 
         finally:
-            if ch is not None:
-                print "closing channel"
-                ch.close()
-            if msg_broker is not None:
-                print "closing broker"
-                msg_broker.close()
+            if mainSocket is not None:
+                print "closing socket"
+                mainSocket.close()
     except Exception, ee:
         # unkown error shouting down
         print ee
