@@ -3,16 +3,22 @@ import sys, pika, json, socket, thread
 
 def clientThread(currClient, addr):
     while True:
-        recvCommand = currClient.recv(1024)
-        dict = json.loads(recvCommand)
-	zoneFace = dict['Zone']
-	acFace = dict['AC']
-        if(int(zoneFace) == 1):
-            GPIO.output(11,int(acFace))
-            print "Zone 1"
-        else:
-            GPIO.output(12,int(acFace))
-            print "Zone 2"
+        try:
+            recvCommand = currClient.recv(1024)
+            dict = json.loads(recvCommand)
+            zoneFace = dict['Zone']
+            acFace = dict['AC']
+            if(int(zoneFace) == 1):
+                GPIO.output(11,int(acFace))
+                print "Zone 1"
+            else:
+                GPIO.output(12,int(acFace))
+                print "Zone 2"
+        except:
+            print "Not receiving commands."
+            currClient.close()
+            return
+            
     
              
 def main(argv):
